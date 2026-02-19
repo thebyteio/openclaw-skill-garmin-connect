@@ -19,8 +19,9 @@ except ImportError:
 
 # Centralized authentication logic
 def get_garmin_client():
-    GARMIN_1P_ITEM_NAME = os.getenv("GARMIN_1P_ITEM_NAME", "Garmin Connect - Brian")
-    GARMIN_1P_VAULT = os.getenv("GARMIN_1P_VAULT", "Erdma")
+    # Default to generic names for a publishable skill, allow override via env vars
+    GARMIN_1P_ITEM_NAME = os.getenv("GARMIN_1P_ITEM_NAME", "Garmin Connect")
+    GARMIN_1P_VAULT = os.getenv("GARMIN_1P_VAULT", "Personal")
     OP_SERVICE_ACCOUNT_TOKEN = os.getenv("OP_SERVICE_ACCOUNT_TOKEN")
 
     if not OP_SERVICE_ACCOUNT_TOKEN:
@@ -51,41 +52,25 @@ def get_garmin_client():
         print(json.dumps({"error": "Garmin Connect credentials (username/password) incomplete in 1Password item."}), file=sys.stderr)
         sys.exit(1)
     
-    AUTH_FILE = '/tmp/garmin-session/garmin_auth.json'
+    AUTH_DIR = '/tmp/garmin-session/'
+    os.makedirs(AUTH_DIR, exist_ok=True) # Ensure directory exists
+
     client = None
 
-    # Try to re-authenticate with existing token
-    if os.path.exists(AUTH_FILE):
-        try:
-            with open(AUTH_FILE, 'r') as f:
-                auth_data = json.load(f)
-                client = Garmin(auth_data['email'], auth_data['password'], is_cn=auth_data.get('is_cn', False))
-                client.garth_login(token=auth_data)
-                # print("DEBUG: Re-authenticated with existing token.", file=sys.stderr)
-        except Exception as e:
-            # print(f"DEBUG: Failed to re-authenticate with token: {e}. Attempting full login.", file=sys.stderr)
-            client = None # Reset client to force full login
-
-
-    if client is None:
-        # Perform initial login if no session token or re-auth failed
-        # print("DEBUG: Attempting full login.", file=sys.stderr)
-        try:
-            client = Garmin(email, password)
-            client.login()
-            
-            # Save session token for future use
-            # Save session token for future use
-            # Garth dump now saves directly to file in a specified directory
-            client.garth.dump(dir_path=os.path.dirname(AUTH_FILE))
-            # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
-            # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
-        except GarminConnectAuthenticationError as e:
-            print(json.dumps({"error": f"Authentication failed: {e}"}), file=sys.stderr)
-            sys.exit(1)
-        except Exception as e:
-            print(json.dumps({"error": f"Initial login failed: {e}"}), file=sys.stderr)
-            sys.exit(1)
+    # Always perform a full login with this garth version
+    try:
+        client = Garmin(email, password)
+        client.login()
+        
+        # Save session token to files in AUTH_DIR for potential future use (if garth changes or is implicitly loaded)
+        client.garth.dump(dir_path=AUTH_DIR) # Pass the directory path
+        # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
+    except GarminConnectAuthenticationError as e:
+        print(json.dumps({"error": f"Authentication failed: {e}"}), file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(json.dumps({"error": f"Initial login failed: {e}"}), file=sys.stderr)
+        sys.exit(1)
             
     return client
 
@@ -143,7 +128,8 @@ def main():
     
     # Training status
     try:
-        training_status = client.get_training_status(cdate=today)
+        # client.get_training_status() does not take a date argument
+        training_status = client.get_training_status()
         if training_status:
             stats['training_status'] = {
                 'vo2_max': training_status.get('vo2MaxValue'),
