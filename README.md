@@ -22,6 +22,22 @@ Combining Garmin's physiological data with Strava's social and activity tracking
 
 **The result?** Your OpenClaw agent can provide intelligent, recovery-aware recommendations. For instance, if Strava suggests a hard tempo ride, but Garmin data indicates high fatigue or poor sleep, OpenClaw can adapt its nudge to recommend an easier workout or a rest day.
 
+## Garmin Account Setup
+
+Before setting up the OpenClaw Garmin Connect skill, ensure your Garmin account is properly configured and actively syncing data.
+
+1.  **Create a Garmin Connect Account (if needed):**
+    If you don't already have one, sign up for a free Garmin Connect account via their [website](https://connect.garmin.com/) or mobile app.
+
+2.  **Pair Your Garmin Devices:**
+    Connect all your Garmin fitness devices (watches, bike computers, etc.) to your Garmin Connect account. Ensure they are actively syncing. The skill relies on this synced data for activities, sleep, body battery, and other physiological metrics.
+
+3.  **Verify Data Sync:**
+    Log in to your Garmin Connect dashboard (web or mobile app) and confirm that your latest activities, sleep, and other metrics are appearing correctly. This ensures the data the skill will fetch is up-to-date.
+
+4.  **Store Garmin Credentials in 1Password:**
+    As detailed in the [Configure 1Password Credentials](#3-configure-1password-credentials) section below, you will need to create a 1Password Login item for your Garmin Connect account. This securely stores your email and password, which the skill uses for authentication.
+
 ## Setup Guide
 
 Follow these steps to set up the Garmin Connect skill with your OpenClaw agent.
