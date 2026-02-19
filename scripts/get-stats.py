@@ -57,20 +57,32 @@ def get_garmin_client():
 
     client = None
 
-    # Always perform a full login with this garth version
+    # Attempt to load session from token files first
     try:
         client = Garmin(email, password)
-        client.login()
-        
-        # Save session token to files in AUTH_DIR for potential future use (if garth changes or is implicitly loaded)
-        client.garth.dump(dir_path=AUTH_DIR) # Pass the directory path
-        # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
-    except GarminConnectAuthenticationError as e:
-        print(json.dumps({"error": f"Authentication failed: {e}"}), file=sys.stderr)
-        sys.exit(1)
+        client.garth.resume(AUTH_DIR) # Use garth.resume to load from dir_path
+        # print("DEBUG: Re-authenticated using existing session token files.", file=sys.stderr)
     except Exception as e:
-        print(json.dumps({"error": f"Initial login failed: {e}"}), file=sys.stderr)
-        sys.exit(1)
+        # print(f"DEBUG: Failed to re-authenticate with token files: {e}. Attempting full login.", file=sys.stderr)
+        client = None # Reset client to force full login
+
+
+    if client is None:
+        # Perform initial login if no session token or re-auth failed
+        # print("DEBUG: Attempting full login.", file=sys.stderr)
+        try:
+            client = Garmin(email, password)
+            client.login()
+            
+            # Save new session token to files in AUTH_DIR
+            client.garth.dump(dir_path=AUTH_DIR) # Pass the directory path
+            # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
+        except GarminConnectAuthenticationError as e:
+            print(json.dumps({"error": f"Authentication failed: {e}"}), file=sys.stderr)
+            sys.exit(1)
+        except Exception as e:
+            print(json.dumps({"error": f"Initial login failed: {e}"}), file=sys.stderr)
+            sys.exit(1)
             
     return client
 
@@ -129,33 +141,42 @@ def main():
     
     # Training status
     try:
+        # Passing 'cdate' as 'today' based on persistent error message from Garmin API
         training_status = client.get_training_status(cdate=today)
         if training_status:
-            # Dynamically get the device_id
+            # Dynamically get the device_id from mostRecentTrainingStatus (assuming primary device is first)
             device_id = None
             if 'mostRecentTrainingStatus' in training_status and \
                'recordedDevices' in training_status['mostRecentTrainingStatus'] and \
                len(training_status['mostRecentTrainingStatus']['recordedDevices']) > 0:
                 device_id = str(training_status['mostRecentTrainingStatus']['recordedDevices'][0]['deviceId'])
             
+            status_feedback_phrase = None
+            vo2_max_value = None
+            lactate_threshold_value = None
+
             if device_id:
-                status_feedback_phrase = training_status.get('mostRecentTrainingStatus', {}).get('latestTrainingStatusData', {}).get(device_id, {}).get('trainingStatusFeedbackPhrase')
-                
-                # VO2 Max and Lactate Threshold are complex and often device/sport specific,
-                # and not directly available in this simplified get_training_status() response.
-                # Leaving them as None for now.
-                stats['training_status'] = {
-                    'status': status_feedback_phrase,
-                    'vo2_max': None,
-                    'lactate_threshold': None
-                }
-            else:
-                print(f"DEBUG: Could not determine device_id for training status.", file=sys.stderr)
-                stats['training_status'] = {
-                    'status': None,
-                    'vo2_max': None,
-                    'lactate_threshold': None
-                }
+                latest_training_status_data = training_status.get('mostRecentTrainingStatus', {}).get('latestTrainingStatusData', {}).get(device_id, {})
+                status_feedback_phrase = latest_training_status_data.get('trainingStatusFeedbackPhrase')
+
+            # VO2 Max (can be generic, running, or cycling)
+            most_recent_vo2_max = training_status.get('mostRecentVO2Max', {})
+            if 'generic' in most_recent_vo2_max and most_recent_vo2_max['generic'] is not None:
+                vo2_max_value = most_recent_vo2_max['generic'].get('vo2MaxValue')
+            elif 'running' in most_recent_vo2_max and most_recent_vo2_max['running'] is not None:
+                vo2_max_value = most_recent_vo2_max['running'].get('vo2MaxValue')
+            elif 'cycling' in most_recent_vo2_max and most_recent_vo2_max['cycling'] is not None:
+                vo2_max_value = most_recent_vo2_max['cycling'].get('vo2MaxValue')
+            
+            # Lactate Threshold - typically found in biometric-service/latestLactateThreshold
+            # This API call (get_training_status) usually does not contain it directly.
+            # Leaving null for now unless a specific sub-endpoint is identified.
+
+            stats['training_status'] = {
+                'status': status_feedback_phrase,
+                'vo2_max': vo2_max_value,
+                'lactate_threshold': lactate_threshold_value # Remains null for now
+            }
         else:
             print(f"DEBUG: No training_status data returned by client.get_training_status().", file=sys.stderr)
             stats['training_status'] = {
