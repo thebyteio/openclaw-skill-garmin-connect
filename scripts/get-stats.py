@@ -120,20 +120,48 @@ def main():
     try:
         hr_data = client.get_rhr_day(today)
         if hr_data:
+            resting_hr_value = hr_data.get('allMetrics', {}).get('metricsMap', {}).get('WELLNESS_RESTING_HEART_RATE', [{}])[0].get('value')
             stats['heart_rate'] = {
-                'resting': hr_data.get('restingHeartRate')
+                'resting': resting_hr_value
             }
     except Exception as e:
         print(f"DEBUG: Error getting heart rate data: {e}", file=sys.stderr)
     
     # Training status
     try:
-        # client.get_training_status() does not take a date argument
-        training_status = client.get_training_status()
+        training_status = client.get_training_status(cdate=today)
         if training_status:
+            # Dynamically get the device_id
+            device_id = None
+            if 'mostRecentTrainingStatus' in training_status and \
+               'recordedDevices' in training_status['mostRecentTrainingStatus'] and \
+               len(training_status['mostRecentTrainingStatus']['recordedDevices']) > 0:
+                device_id = str(training_status['mostRecentTrainingStatus']['recordedDevices'][0]['deviceId'])
+            
+            if device_id:
+                status_feedback_phrase = training_status.get('mostRecentTrainingStatus', {}).get('latestTrainingStatusData', {}).get(device_id, {}).get('trainingStatusFeedbackPhrase')
+                
+                # VO2 Max and Lactate Threshold are complex and often device/sport specific,
+                # and not directly available in this simplified get_training_status() response.
+                # Leaving them as None for now.
+                stats['training_status'] = {
+                    'status': status_feedback_phrase,
+                    'vo2_max': None,
+                    'lactate_threshold': None
+                }
+            else:
+                print(f"DEBUG: Could not determine device_id for training status.", file=sys.stderr)
+                stats['training_status'] = {
+                    'status': None,
+                    'vo2_max': None,
+                    'lactate_threshold': None
+                }
+        else:
+            print(f"DEBUG: No training_status data returned by client.get_training_status().", file=sys.stderr)
             stats['training_status'] = {
-                'vo2_max': training_status.get('vo2MaxValue'),
-                'lactate_threshold': training_status.get('lactateHeartRate')
+                'status': None,
+                'vo2_max': None,
+                'lactate_threshold': None
             }
     except Exception as e:
         print(f"DEBUG: Error getting training status: {e}", file=sys.stderr)
