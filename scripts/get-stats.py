@@ -19,8 +19,8 @@ except ImportError:
 
 # Centralized authentication logic
 def get_garmin_client():
-    GARMIN_1P_ITEM_NAME = os.getenv("GARMIN_1P_ITEM_NAME", "Garmin Connect")
-    GARMIN_1P_VAULT = os.getenv("GARMIN_1P_VAULT", "Personal")
+    GARMIN_1P_ITEM_NAME = os.getenv("GARMIN_1P_ITEM_NAME", "Garmin Connect - Brian")
+    GARMIN_1P_VAULT = os.getenv("GARMIN_1P_VAULT", "Erdma")
     OP_SERVICE_ACCOUNT_TOKEN = os.getenv("OP_SERVICE_ACCOUNT_TOKEN")
 
     if not OP_SERVICE_ACCOUNT_TOKEN:
@@ -75,9 +75,10 @@ def get_garmin_client():
             client.login()
             
             # Save session token for future use
-            garth_token = client.garth.dump()
-            with open(AUTH_FILE, 'w') as f:
-                json.dump(garth_token, f)
+            # Save session token for future use
+            # Garth dump now saves directly to file in a specified directory
+            client.garth.dump(dir_path=os.path.dirname(AUTH_FILE))
+            # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
             # print("DEBUG: Full login successful and token saved.", file=sys.stderr)
         except GarminConnectAuthenticationError as e:
             print(json.dumps({"error": f"Authentication failed: {e}"}), file=sys.stderr)
@@ -142,11 +143,11 @@ def main():
     
     # Training status
     try:
-        training_status = client.get_training_status()
+        training_status = client.get_training_status(cdate=today)
         if training_status:
             stats['training_status'] = {
                 'vo2_max': training_status.get('vo2MaxValue'),
-                'lactate_threshold': training_status.get('lactateHeartRate') # Corrected field name
+                'lactate_threshold': training_status.get('lactateHeartRate')
             }
     except Exception as e:
         print(f"DEBUG: Error getting training status: {e}", file=sys.stderr)
