@@ -26,6 +26,7 @@ if [ "$GARMIN_OK" = "true" ]; then
   BODY_BATTERY=$(echo "$GARMIN_STATS" | jq -r '.body_battery.current // "N/A"')
   RESTING_HR=$(echo "$GARMIN_STATS" | jq -r '.heart_rate.resting // "N/A"')
   STRESS_AVG=$(echo "$GARMIN_STATS" | jq -r '.stress.average // "N/A"')
+  TRAINING_STATUS=$(echo "$GARMIN_STATS" | jq -r '.training_status.status // "N/A"')
   
   # Sleep
   if [ "$SLEEP_HOURS" != "N/A" ] && [ "$SLEEP_HOURS" != "null" ]; then
@@ -61,6 +62,13 @@ if [ "$GARMIN_OK" = "true" ]; then
     else
       echo "😰 **Stress:** High (${STRESS_AVG}) - consider recovery day"
     fi
+  fi
+
+  # Training Status
+  if [ "$TRAINING_STATUS" != "N/A" ] && [ "$TRAINING_STATUS" != "null" ]; then
+    # Replace underscores with spaces and capitalize words for better readability
+    FORMATTED_TRAINING_STATUS=$(echo "${TRAINING_STATUS}" | sed 's/_/ /g' | awk '{for(i=1; i<=NF; i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2));}1')
+    echo "🏋️ **Training Status:** ${FORMATTED_TRAINING_STATUS}"
   fi
   
   echo ""
